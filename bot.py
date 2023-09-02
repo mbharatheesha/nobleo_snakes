@@ -33,10 +33,6 @@ class Snakunamatata(Bot):
     """
     Moves randomly, but makes sure it doesn't collide with other snakes
     """
-    def __init__(self, id, grid_size):
-        self.grid_size = grid_size
-        self.id = id
-        self.grid = np.array([[i + j * grid_size[0] for i in range(grid_size[1])] for j in range(grid_size[1]-1, -1, -1)])
 
     @property
     def name(self):
@@ -49,8 +45,6 @@ class Snakunamatata(Bot):
 
     def determine_next_move(self, snake: Snake, other_snakes: List[Snake], candies: List[np.array]) -> Move:
         moves = self._determine_possible_moves(snake, other_snakes[0], candies)
-        # print(f"Action! {self.id}")
-        # print(len(moves))
         return self.choose_move(moves)
 
     def _determine_possible_moves(self, snake, other_snake, candies) -> List[Move]:
@@ -60,23 +54,13 @@ class Snakunamatata(Bot):
         """
         # highest priority, a move that is on the grid and towards the candy
         # Find nearest candy
-        nearest_candy = candies[np.argmin(np.linalg.norm(candies - snake[0], axis = 1))]
-        # print(nearest_candy)
-        # print(snake[0])
-        # print("########")
+        nearest_candy = candies[np.argmin(np.sum(np.abs(snake[0]-candies),axis=1))]
         _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy)
 
-        # print(path_to_candy)
-        # print(directions_to_candy)
 
         if (len(snake) > 2*len(other_snake)):
             raise Exception("I will exit the game and win if I am 2x longer than opponent :)")
 
-        # print(path_to_candy)
-
-        # # Either go towards the candy or do a random collision free move.
-        # # desired_move = directions_to_candy[1]
-        # print(len(path_to_candy))
 
         if (len(path_to_candy) > 1 and not collides(snake[0] + MOVE_VALUE_TO_DIRECTION[directions_to_candy[0]], [snake, other_snake])):
             return [directions_to_candy[0]]
@@ -99,7 +83,6 @@ class Snakunamatata(Bot):
     def astar_manhattan(self, start, end):
         # Get the dimensions of the grid
         rows, cols = self.grid_size[0], self.grid_size[1]
-        # grid = np.array([[i + j * self.grid_size[0] for i in range(self.grid_size[1])] for j in range(self.grid_size[1]-1, -1, -1)])
         # Initialize the distance and visited arrays
         distance = [[float('inf')] * cols for _ in range(rows)]
         distance[start[0]][start[1]] = 0
@@ -124,21 +107,21 @@ class Snakunamatata(Bot):
                 path = []
                 directions = []
                 while np.all(current != start):
-                    previous_cell, direction = came_from[current]
+                    _, direction = came_from[current]
                     path.insert(0, current)
                     directions.insert(0, direction)
-                    current = previous_cell
+                    current = tuple(np.subtract(current, MOVE_VALUE_TO_DIRECTION[direction]))
                 path.insert(0, start)
                 return [], path, directions
 
             # Explore all possible directions
             for move in MOVE_VALUE_TO_DIRECTION:
-                nx, ny = tuple(np.array([x,y]) + MOVE_VALUE_TO_DIRECTION[move])
+                nx, ny = tuple(np.add(current, MOVE_VALUE_TO_DIRECTION[move]))
 
                 # Check if the next cell is within the grid boundaries
                 if 0 <= nx < rows and 0 <= ny < cols and not visited[nx][ny]:
                     # Calculate the new distance using Manhattan distance
-                    new_dist = distance[x][y] + abs(self.grid[x][y] - self.grid[nx][ny])
+                    new_dist = distance[x][y] + (abs(current[0] - nx) + abs(current[1] - ny))
                     # Update the distance if it's shorter
                     if new_dist < distance[nx][ny]:
                         distance[nx][ny] = new_dist
@@ -148,7 +131,20 @@ class Snakunamatata(Bot):
                         priority = new_dist + heuristic
                         heapq.heappush(min_heap, (priority, (nx, ny)))
                         # Update the parent of the next cell
-                        came_from[(nx, ny)] = (current, move)
+                        came_from[(nx, ny)] = (tuple(current), move)
+                        # Greedy strategy. Stop once we hit the goal. With Manhattan this is the best anyway.
+                        if np.all((nx,ny) == end):
+                            current = (nx,ny)
+                            path = []
+                            directions = []
+                            while not(current[0] == start[0] and current[1] == start[1]):
+                                parent, direction = came_from[current]
+                                path.insert(0, current)
+                                directions.insert(0, direction)
+                                current = parent
+                            path.insert(0, start)
+                            return [], path, directions
+
 
         # If no path is found
         return -1, [], []
@@ -159,4 +155,3 @@ class Snakunamatata(Bot):
         Randomly pick a move
         """
         return choice(moves)
-
