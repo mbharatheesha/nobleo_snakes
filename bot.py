@@ -44,8 +44,6 @@ class Snakunamatata(Bot):
 
     def determine_next_move(self, snake: Snake, other_snakes: List[Snake], candies: List[np.array]) -> Move:
         moves = self._determine_possible_moves(snake, other_snakes[0], candies)
-        print("Action!")
-        print(len(moves))
         return self.choose_move(moves)
 
     def _determine_possible_moves(self, snake, other_snake, candies) -> List[Move]:
@@ -59,7 +57,7 @@ class Snakunamatata(Bot):
         _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy)
 
         if (len(snake) > 2*len(other_snake)):
-            bla
+            raise Exception("I will exit the game and win if I am 2x longer than opponent :)")
 
         # print(path_to_candy)
 
@@ -91,7 +89,7 @@ class Snakunamatata(Bot):
 
         # Get the dimensions of the grid
         rows, cols = self.grid_size[0], self.grid_size[1]
-        grid = [[i + j * int(rows) for i in range(int(rows))] for j in range(int(cols))]
+        grid = np.array([[i + j * self.grid_size[0] for i in range(self.grid_size[1])] for j in range(self.grid_size[1]-1, -1, -1)])
         # Initialize the distance and visited arrays
         distance = [[float('inf')] * cols for _ in range(rows)]
         distance[start[0]][start[1]] = 0
@@ -153,4 +151,3 @@ class Snakunamatata(Bot):
         Randomly pick a move
         """
         return choice(moves)
-        # return moves[0]
