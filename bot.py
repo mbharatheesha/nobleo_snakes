@@ -33,6 +33,11 @@ class Snakunamatata(Bot):
     """
     Moves randomly, but makes sure it doesn't collide with other snakes
     """
+    def __init__(self, id, grid_size):
+        self.grid_size = grid_size
+        self.id = id
+        # Create the grid coordinates on init.
+        self.grid = np.array([[i + j * grid_size[0] for i in range(grid_size[1])] for j in range(grid_size[1]-1, -1, -1)])
 
     @property
     def name(self):
@@ -89,7 +94,6 @@ class Snakunamatata(Bot):
 
         # Get the dimensions of the grid
         rows, cols = self.grid_size[0], self.grid_size[1]
-        grid = np.array([[i + j * self.grid_size[0] for i in range(self.grid_size[1])] for j in range(self.grid_size[1]-1, -1, -1)])
         # Initialize the distance and visited arrays
         distance = [[float('inf')] * cols for _ in range(rows)]
         distance[start[0]][start[1]] = 0
@@ -123,14 +127,12 @@ class Snakunamatata(Bot):
 
             # Explore all possible directions
             for move in MOVE_VALUE_TO_DIRECTION:
-                dx, dy = MOVE_VALUE_TO_DIRECTION[move][0], MOVE_VALUE_TO_DIRECTION[move][1]
-                nx, ny = x + dx, y + dy
+                nx, ny = tuple(np.array([x,y]) + MOVE_VALUE_TO_DIRECTION[move])
 
                 # Check if the next cell is within the grid boundaries
-                if 0 <= nx < rows and 0 <= ny < cols and not visited[nx][ny]:
+                if 0 <= nx < rows and 0 <= ny < cols and not visited[nx][ny]  <= 1:
                     # Calculate the new distance using Manhattan distance
-                    new_dist = distance[x][y] + abs(grid[x][y] - grid[nx][ny])
-
+                    new_dist = distance[x][y] + abs(self.grid[x][y] - self.grid[nx][ny])
                     # Update the distance if it's shorter
                     if new_dist < distance[nx][ny]:
                         distance[nx][ny] = new_dist
