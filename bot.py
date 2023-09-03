@@ -53,8 +53,11 @@ class Snakunamatata(Bot):
         """
         # highest priority, a move that is on the grid and towards the candy
         # Find nearest candy
-        nearest_candy = candies[np.argmin(np.sum(np.abs(snake[0]-candies),axis=1))]
-        _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy)
+        if len(snake) < 12:
+            nearest_candy = candies[np.argmin(np.sum(np.abs(snake[0]-candies),axis=1))]
+        else:
+            nearest_candy = candies[np.argmax(np.sum(np.abs(other_snake[0]-candies),axis=1))]
+        _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy, snake, other_snake)
 
 
         if (len(snake) > 2*len(other_snake)):
@@ -81,7 +84,7 @@ class Snakunamatata(Bot):
         else:
             return on_grid
 
-    def astar_manhattan(self, start, end):
+    def astar_manhattan(self, start, end, snake, other_snake):
         # Get the dimensions of the grid
         rows, cols = self.grid_size[0], self.grid_size[1]
         # Initialize the distance and visited arrays
@@ -130,6 +133,8 @@ class Snakunamatata(Bot):
                         heuristic = abs(nx - end[0]) + abs(ny - end[1])
                         # Use the sum of the distance and heuristic as the priority
                         priority = new_dist + heuristic
+                        if collides(np.array(nx,ny),[snake, other_snake]):
+                            priority = 1e6
                         heapq.heappush(min_heap, (priority, (nx, ny)))
                         # Update the parent of the next cell
                         came_from[(nx, ny)] = (tuple(current), move)
