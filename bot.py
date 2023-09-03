@@ -36,7 +36,6 @@ class Snakunamatata(Bot):
 
     @property
     def name(self):
-        # Create the grid coordinates on init.
         return 'Snakunamatata'
 
     @property
@@ -59,7 +58,9 @@ class Snakunamatata(Bot):
 
 
         if (len(snake) > 2*len(other_snake)):
-            raise Exception("I will exit the game and win if I am 2x longer than opponent :)")
+            for key, value in MOVE_VALUE_TO_DIRECTION.items():
+                if np.all(value == np.array([snake[1] - snake[0]])):
+                    return [key]
 
 
         if (len(path_to_candy) > 1 and not collides(snake[0] + MOVE_VALUE_TO_DIRECTION[directions_to_candy[0]], [snake, other_snake])):
