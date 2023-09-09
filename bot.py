@@ -52,23 +52,23 @@ class Snakunamatata(Bot):
         will be used during unit-testing
         """
         # highest priority, a move that is on the grid and towards the candy
-        # Find nearest candy
-        if len(snake) < 12:
-            nearest_candy = candies[np.argmin(np.sum(np.abs(snake[0]-candies),axis=1))]
-        else:
-            nearest_candy = candies[np.argmax(np.sum(np.abs(other_snake[0]-candies),axis=1))]
-        _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy, snake, other_snake)
-
-
+        # Prefer nearest candy if other is further away from nearest than me
         if (len(snake) > 2*len(other_snake)):
             for key, value in MOVE_VALUE_TO_DIRECTION.items():
                 if np.all(value == np.array([snake[1] - snake[0]])):
                     return [key]
 
+        nearest_candy = candies[np.argmin(np.sum(np.abs(snake[0]-candies),axis=1))]
+
+        dist_other_to_nearest = np.sum(np.abs(other_snake[0] - nearest_candy), axis=0)
+        dist_me_to_nearest = np.sum(np.abs(snake[0] - nearest_candy), axis=0)
+        if dist_me_to_nearest > dist_other_to_nearest:
+            nearest_candy = candies[np.argmax(np.sum(np.abs(other_snake[0]-candies),axis=1))]
+
+        _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy, snake, other_snake)
 
         if (len(path_to_candy) > 1 and not collides(snake[0] + MOVE_VALUE_TO_DIRECTION[directions_to_candy[0]], [snake, other_snake])):
             return [directions_to_candy[0]]
-
 
         on_grid = [move for move in MOVE_VALUE_TO_DIRECTION
                    if is_on_grid(snake[0] + MOVE_VALUE_TO_DIRECTION[move], self.grid_size)]
@@ -91,6 +91,7 @@ class Snakunamatata(Bot):
         distance = [[float('inf')] * cols for _ in range(rows)]
         distance[start[0]][start[1]] = 0
         visited = [[False] * cols for _ in range(rows)]
+        wiggle_yeah = 5
 
         # Priority queue to keep track of the cells to visit
         min_heap = [(0, start)]
@@ -104,6 +105,10 @@ class Snakunamatata(Bot):
 
             # Mark the current cell as visited
             visited[x][y] = True
+            for cell in snake:
+                visited[cell[0]][cell[1]] = True
+            for cell in other_snake:
+                visited[cell[0]][cell[1]] = True
 
             # Check if we have reached the end point
             if np.all(current == end):
@@ -139,7 +144,7 @@ class Snakunamatata(Bot):
                         # Update the parent of the next cell
                         came_from[(nx, ny)] = (tuple(current), move)
                         # Greedy strategy. Stop once we hit the goal. With Manhattan this is the best anyway.
-                        if np.all((nx,ny) == end):
+                        if np.all((nx,ny) == end) or len(min_heap) == wiggle_yeah:
                             current = (nx,ny)
                             path = []
                             directions = []
