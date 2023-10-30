@@ -2,6 +2,7 @@
 
 from random import choice
 from typing import List, Tuple
+from copy import deepcopy
 import heapq
 
 
@@ -51,21 +52,94 @@ class Snakunamatata(Bot):
         Return a list with all moves that we want to do. Later we'll choose one from this list randomly. This method
         will be used during unit-testing
         """
-        # highest priority, a move that is on the grid and towards the candy
-        # Prefer nearest candy if other is further away from nearest than me
         if (len(snake) > 2*len(other_snake)):
             for key, value in MOVE_VALUE_TO_DIRECTION.items():
                 if np.all(value == np.array([snake[1] - snake[0]])):
                     return [key]
 
+        candy_distances = np.sum(np.abs(snake[0] - candies), axis = 1)
+        candy_distances_other = np.sum(np.abs(other_snake[0] - candies), axis = 1)
+        sorted_ids = np.argsort(candy_distances)
+        sorted_candies = []
+        for idx in sorted_ids:
+            sorted_candies.append(candies[idx])
+
         nearest_candy = candies[np.argmin(np.sum(np.abs(snake[0]-candies),axis=1))]
+
+        for pos in snake.positions:
+            if np.array_equal(nearest_candy, pos):
+                nearest_candy = sorted_candies[1]
 
         dist_other_to_nearest = np.sum(np.abs(other_snake[0] - nearest_candy), axis=0)
         dist_me_to_nearest = np.sum(np.abs(snake[0] - nearest_candy), axis=0)
-        if dist_me_to_nearest > dist_other_to_nearest:
+        if dist_me_to_nearest >= dist_other_to_nearest:
             nearest_candy = candies[np.argmax(np.sum(np.abs(other_snake[0]-candies),axis=1))]
 
-        _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy, snake, other_snake)
+        corners = [np.array([0,0]), np.array([0,15]), np.array([15,0]), np.array([15,15]), np.array([7,7])]
+
+        if len(snake) > 6 and np.all(candy_distances < candy_distances_other):
+            _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], other_snake[0], snake, other_snake, wiggle_factor=5)
+        else:
+            _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], nearest_candy, snake, other_snake)
+
+        head_snake = snake[0]
+        head_previous = snake[1]
+        head_other = other_snake[0]
+        head_previous_other = other_snake[1]
+        if(head_snake[0] == 1 and head_other[0] == 0 and head_previous[0] == 1 and head_previous_other[0] == 0):
+            if(head_previous[1] > head_snake[1]):
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.LEFT], [snake, other_snake]):
+                    return [Move.LEFT]
+            else:
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.LEFT], [snake, other_snake]):
+                    return [Move.LEFT]
+        elif (head_snake[0]==14 and head_other[0] == 15 and head_previous[0] == 14 and head_previous_other[0] == 15):
+            if(head_previous[1] > head_snake[1]):
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.LEFT], [snake, other_snake]):
+                    return [Move.LEFT]
+            else:
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.RIGHT], [snake, other_snake]):
+                    return [Move.RIGHT]
+        elif (head_snake[1] == 1 and head_other[1] == 0 and head_previous[1] == 1 and head_previous_other[1] == 0):
+            if(head_previous[0] > head_snake[0]):
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.DOWN], [snake, other_snake]):
+                    return [Move.DOWN]
+            else:
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.DOWN], [snake, other_snake]):
+                    return [Move.DOWN]
+        elif (head_snake[1] == 14 and head_other[1] == 15 and head_previous[1] == 14 and head_previous_other[1] == 15):
+            if(head_previous[0] > head_snake[0]):
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.UP], [snake, other_snake]):
+                    return [Move.UP]
+            else:
+                if not collides(snake[0]+MOVE_VALUE_TO_DIRECTION[Move.UP], [snake, other_snake]):
+                    return [Move.UP]
+        if len(path_to_candy) > 1:
+            next_snake = deepcopy(snake)
+            for dir in directions_to_candy:
+                next_snake.move(MOVE_VALUE_TO_DIRECTION[dir], grow = True)
+            nearest_candy = corners[np.argmax(np.sum(np.abs(next_snake[0]-corners),axis=1))]
+            _, free_space, _ = self.astar_manhattan(next_snake[0], nearest_candy, snake, other_snake, wiggle_factor=15)
+            if free_space == []:
+                new_path = []
+                new_directions = []
+                for candy in sorted_candies:
+                    _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], candy, snake, other_snake, wiggle_factor=15)
+                    if len(path_to_candy) > len(new_path):
+                        new_directions = directions_to_candy
+                        new_path = path_to_candy
+                path_to_candy = new_path
+                directions_to_candy = new_directions
+        else:
+            new_path = []
+            new_directions = []
+            for candy in sorted_candies:
+                _, path_to_candy, directions_to_candy = self.astar_manhattan(snake[0], candy, snake, other_snake, wiggle_factor=5)
+                if len(path_to_candy) > len(new_path):
+                    new_directions = directions_to_candy
+                    new_path = path_to_candy
+            path_to_candy = new_path
+            directions_to_candy = new_directions
 
         if (len(path_to_candy) > 1 and not collides(snake[0] + MOVE_VALUE_TO_DIRECTION[directions_to_candy[0]], [snake, other_snake])):
             return [directions_to_candy[0]]
@@ -84,14 +158,16 @@ class Snakunamatata(Bot):
         else:
             return on_grid
 
-    def astar_manhattan(self, start, end, snake, other_snake):
+
+    def astar_manhattan(self, start, end, snake, other_snake, wiggle_factor=np.Inf):
         # Get the dimensions of the grid
         rows, cols = self.grid_size[0], self.grid_size[1]
+        # print(f"current goal: {end}")
         # Initialize the distance and visited arrays
         distance = [[float('inf')] * cols for _ in range(rows)]
         distance[start[0]][start[1]] = 0
         visited = [[False] * cols for _ in range(rows)]
-        wiggle_yeah = 5
+        wiggle_yeah = wiggle_factor
 
         # Priority queue to keep track of the cells to visit
         min_heap = [(0, start)]
@@ -105,9 +181,9 @@ class Snakunamatata(Bot):
 
             # Mark the current cell as visited
             visited[x][y] = True
-            for cell in snake:
+            for cell in snake.positions:
                 visited[cell[0]][cell[1]] = True
-            for cell in other_snake:
+            for cell in other_snake.positions:
                 visited[cell[0]][cell[1]] = True
 
             # Check if we have reached the end point
@@ -126,6 +202,8 @@ class Snakunamatata(Bot):
             # Explore all possible directions
             for move in MOVE_VALUE_TO_DIRECTION:
                 nx, ny = tuple(np.add(current, MOVE_VALUE_TO_DIRECTION[move]))
+                if collides(np.array([nx, ny]), [snake,other_snake]):
+                    visited[nx][ny] = True
 
                 # Check if the next cell is within the grid boundaries
                 if 0 <= nx < rows and 0 <= ny < cols and not visited[nx][ny]:
@@ -138,8 +216,8 @@ class Snakunamatata(Bot):
                         heuristic = abs(nx - end[0]) + abs(ny - end[1])
                         # Use the sum of the distance and heuristic as the priority
                         priority = new_dist + heuristic
-                        if collides(np.array(nx,ny),[snake, other_snake]):
-                            priority = 1e6
+                        # if collides(np.array([nx,ny]),[snake, other_snake]):
+                        #     priority = 1e6
                         heapq.heappush(min_heap, (priority, (nx, ny)))
                         # Update the parent of the next cell
                         came_from[(nx, ny)] = (tuple(current), move)
